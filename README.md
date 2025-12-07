@@ -34,6 +34,42 @@ This POC demonstrates the core stabilization mechanics using a simple ball physi
 - Royal Blue (#4169E1) for stabilizing mode
 - Gray background (#d9d9d9)
 
+## Quick Start
+
+### Option 1: Standalone HTML (Easiest)
+Just open `standalone.html` in your phone's browser:
+1. Download or serve `standalone.html`
+2. Open on your mobile device
+3. Grant motion sensor permissions (iOS)
+4. Start testing!
+
+### Option 2: Local Development
+```bash
+npm install
+npm run dev
+# Access at http://localhost:5173 or http://YOUR_IP:5173
+```
+
+### Option 3: Deploy to Web
+
+**Vercel (Recommended)**
+```bash
+npm install -g vercel
+vercel
+```
+
+**Netlify**
+```bash
+npm install -g netlify-cli
+netlify deploy
+```
+
+**GitHub Pages**
+```bash
+npm run build
+# Deploy the 'dist' folder to GitHub Pages
+```
+
 ## Usage
 
 1. Open the app on a mobile device with motion sensors
@@ -42,11 +78,24 @@ This POC demonstrates the core stabilization mechanics using a simple ball physi
 4. Tap "Stabilize" to activate counter-forces
 5. Observe coordinates showing original and stabilized positions
 
+### Important Notes
+- **iOS requires HTTPS** for motion sensors (except localhost)
+- **Android** works on both HTTP and HTTPS
+- Use deployment services (Vercel/Netlify) for automatic HTTPS
+
 ## File Structure
 
 ```
+standalone.html              # Single-file version (no build required)
+index.html                   # Vite entry point
+vite.config.js              # Vite configuration
+package.json                # Dependencies
 src/
-  └── tremor-stabilization.jsx  # Main React component
+  ├── main.jsx              # React entry point
+  ├── App.jsx               # App wrapper
+  └── tremor-stabilization.jsx  # Main component
+vercel.json                 # Vercel deployment config
+netlify.toml                # Netlify deployment config
 ```
 
 ## Future Development
