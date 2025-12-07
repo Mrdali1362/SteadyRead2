@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>SteadyRead - Hand Tremor Stabilization</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    #root {
+      width: 100vw;
+      height: 100vh;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <!-- React and Babel from CDN -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    function TremorStabilization() {
+      const canvasRef = useRef(null);
+      const [isStabilizing, setIsStabilizing] = useState(false);
+      const [permissionGranted, setPermissionGranted] = useState(false);
+      const [needsPermission, setNeedsPermission] = useState(false);
+      const [coordinates, setCoordinates] = useState({ x: 0, y: 0, newX: 0, newY: 0 });
+
+      // Ball state
+      const ballRef = useRef({
+        x: 0,
+        y: 0,
+        vx: 0,
+        vy: 0,
+        radius: 40
+      });
+
+      // Device orientation
+      const orientationRef = useRef({ beta: 0, gamma: 0 });
+
+      // Animation frame
+      const animationRef = useRef(null);
+
+      useEffect(() => {
+        // Check if we need to request permission (iOS 13+)
+        if (typeof DeviceOrientationEvent !== 'undefined' &&
+            typeof DeviceOrientationEvent.requestPermission === 'function') {
+          setNeedsPermission(true);
+        } else {
+          setPermissionGranted(true);
+          startListening();
+        }
+
+        return () => {
+          if (animationRef.current) {
+            cancelAnimationFrame(animationRef.current);
+          }
+          window.removeEventListener('deviceorientation', handleOrientation);
+        };
+      }, []);
+
+      const requestPermission = async () => {
+        try {
+          const permission = await DeviceOrientationEvent.requestPermission();
+          if (permission === 'granted') {
+            setPermissionGranted(true);
+            setNeedsPermission(false);
+            startListening();
+          }
+        } catch (error) {
+          console.error('Permission denied:', error);
+          alert('Permission denied. Please enable motion sensors in your browser settings.');
+        }
+      };
+
+      const startListening = () => {
+        window.addEventListener('deviceorientation', handleOrientation);
+        startAnimation();
+      };
+
+      const handleOrientation = (event) => {
+        // beta: front-to-back tilt (-180 to 180)
+        // gamma: left-to-right tilt (-90 to 90)
+        orientationRef.current = {
+          beta: event.beta || 0,
+          gamma: event.gamma || 0
+        };
+      };
+
+      const startAnimation = () => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+
+        const ctx = canvas.getContext('2d');
+        const width = canvas.width;
+        const height = canvas.height;
+
+        // Initialize ball at center
+        ballRef.current.x = width / 2;
+        ballRef.current.y = height / 2;
+
+        const animate = () => {
+          const ball = ballRef.current;
+          const { beta, gamma } = orientationRef.current;
+
+          // Physics constants
+          const gravity = 0.3;
+          const damping = 0.98;
+          const bounceDamping = 0.7;
+          const stabilizationForce = 0.5;
+          const centeringForce = 0.1;
+
+          // Store original position for coordinate display
+          const originalX = Math.round(ball.x - width / 2);
+          const originalY = Math.round(ball.y - height / 2);
+
+          let newX = originalX;
+          let newY = originalY;
+
+          if (isStabilizing) {
+            // Calculate distance from center
+            const centerX = width / 2;
+            const centerY = height / 2;
+            const dx = centerX - ball.x;
+            const dy = centerY - ball.y;
+
+            // Apply centering force
+            ball.vx += dx * centeringForce;
+            ball.vy += dy * centeringForce;
+
+            // Counter the tilt forces
+            ball.vx -= gamma * gravity * stabilizationForce;
+            ball.vy -= beta * gravity * stabilizationForce;
+
+            // Extra damping when stabilizing
+            ball.vx *= 0.85;
+            ball.vy *= 0.85;
+          } else {
+            // Normal gravity-based movement
+            // gamma affects horizontal movement (left/right tilt)
+            // beta affects vertical movement (forward/backward tilt)
+            ball.vx += gamma * gravity * 0.1;
+            ball.vy += beta * gravity * 0.1;
+
+            // Apply damping (air resistance)
+            ball.vx *= damping;
+            ball.vy *= damping;
+          }
+
+          // Update position
+          ball.x += ball.vx;
+          ball.y += ball.vy;
+
+          // Boundary collision with bounce
+          if (ball.x - ball.radius < 0) {
+            ball.x = ball.radius;
+            ball.vx = -ball.vx * bounceDamping;
+          }
+          if (ball.x + ball.radius > width) {
+            ball.x = width - ball.radius;
+            ball.vx = -ball.vx * bounceDamping;
+          }
+          if (ball.y - ball.radius < 0) {
+            ball.y = ball.radius;
+            ball.vy = -ball.vy * bounceDamping;
+          }
+          if (ball.y + ball.radius > height) {
+            ball.y = height - ball.radius;
+            ball.vy = -ball.vy * bounceDamping;
+          }
+
+          // Calculate new coordinates after physics
+          newX = Math.round(ball.x - width / 2);
+          newY = Math.round(ball.y - height / 2);
+
+          // Update coordinate display
+          setCoordinates({
+            x: originalX,
+            y: originalY,
+            newX: newX,
+            newY: newY
+          });
+
+          // Clear and redraw
+          ctx.clearRect(0, 0, width, height);
+
+          // Draw ball with color based on stabilization state
+          ctx.fillStyle = isStabilizing ? '#4169E1' : '#333333';
+          ctx.beginPath();
+          ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+          ctx.fill();
+
+          animationRef.current = requestAnimationFrame(animate);
+        };
+
+        animate();
+      };
+
+      const toggleStabilization = () => {
+        setIsStabilizing(!isStabilizing);
+      };
+
+      return (
+        <div style={{
+          width: '100vw',
+          height: '100vh',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: '#d9d9d9',
+          margin: 0,
+          padding: 0,
+          overflow: 'hidden',
+          fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+        }}>
+          {needsPermission && !permissionGranted ? (
+            <div style={{
+              textAlign: 'center',
+              padding: '20px'
+            }}>
+              <h2 style={{ marginBottom: '20px', color: '#333' }}>Motion Sensor Access Required</h2>
+              <p style={{ marginBottom: '30px', color: '#666' }}>
+                This app needs access to your device's motion sensors to work.
+              </p>
+              <button
+                onClick={requestPermission}
+                style={{
+                  padding: '15px 30px',
+                  fontSize: '18px',
+                  backgroundColor: '#333333',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontWeight: '600'
+                }}
+              >
+                Enable Motion Sensors
+              </button>
+            </div>
+          ) : (
+            <>
+              {/* Coordinate Display */}
+              <div style={{
+                width: '100%',
+                maxWidth: '390px',
+                padding: '20px 20px 10px 20px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                fontSize: '16px',
+                color: '#000',
+                fontWeight: '400'
+              }}>
+                <div style={{ display: 'flex', gap: '20px' }}>
+                  <span>X : {coordinates.x}</span>
+                  <span>Y : {coordinates.y}</span>
+                </div>
+                <div style={{ display: 'flex', gap: '20px' }}>
+                  <span>New-X : {coordinates.newX}</span>
+                  <span>New-Y : {coordinates.newY}</span>
+                </div>
+              </div>
+
+              {/* Canvas Container */}
+              <div style={{
+                flex: 1,
+                width: '100%',
+                display: 'flex',
+                alignItems: 'flex-start',
+                justifyContent: 'center',
+                padding: '0 20px'
+              }}>
+                <canvas
+                  ref={canvasRef}
+                  width={350}
+                  height={600}
+                  style={{
+                    border: '2px dotted #666',
+                    borderRadius: '0',
+                    backgroundColor: '#e8e8e8',
+                    boxShadow: 'none'
+                  }}
+                />
+              </div>
+
+              {/* Button */}
+              <div style={{
+                padding: '20px',
+                width: '100%',
+                display: 'flex',
+                justifyContent: 'center',
+                paddingBottom: '40px'
+              }}>
+                <button
+                  onClick={toggleStabilization}
+                  style={{
+                    padding: '18px 0',
+                    fontSize: '18px',
+                    fontWeight: '400',
+                    backgroundColor: isStabilizing ? '#4169E1' : '#333333',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    boxShadow: 'none',
+                    transition: 'background-color 0.3s ease',
+                    width: '350px',
+                    maxWidth: 'calc(100vw - 40px)'
+                  }}
+                >
+                  {isStabilizing ? 'Release' : 'Stabilize'}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      );
+    }
+
+    // Render the app
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<TremorStabilization />);
+  </script>
+</body>
+</html>
