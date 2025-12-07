@@ -64,10 +64,16 @@ npm install -g netlify-cli
 netlify deploy
 ```
 
-**GitHub Pages**
+**GitHub Pages (Automatic)**
+1. Go to Settings > Pages in your GitHub repo
+2. Set Source to "GitHub Actions"
+3. Push to main branch - it will auto-deploy!
+4. Your app will be at: `https://mrdali1362.github.io/SteadyRead2/`
+
+**GitHub Pages (Manual)**
 ```bash
 npm run build
-# Deploy the 'dist' folder to GitHub Pages
+# Then manually upload the 'dist' folder to gh-pages branch
 ```
 
 ## Usage
